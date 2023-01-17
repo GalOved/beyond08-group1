@@ -1,12 +1,12 @@
-from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
-from django.db.models import Avg
-from django.shortcuts import redirect, render
-from tasties_app.models import Category, Recipe
-
-from .forms import CreateUserForm
 from django.core.exceptions import ObjectDoesNotExist
+from django.shortcuts import render, redirect
+from tasties_app.models import Recipe, Comment, Category
+from django.db.models import Avg
+from django.contrib.auth import logout, login, authenticate
+from django.contrib.auth.decorators import login_required
+from .forms import CreateUserForm
+from django.contrib import messages
+from django.utils import timezone
 
 
 def base(request):
@@ -94,5 +94,19 @@ def view_recipe(request, recipe_id=None):
     ingredients = recipe.ingredient_set.all()
     rating = recipe.rating_set.aggregate(Avg('rating'))['rating__avg']
     categories = recipe.categories.all()
-    context = {'recipe': recipe, 'ingredients': ingredients, 'rating': rating, 'categories': categories}
+    if request.method == "POST" and request.POST['action'] == 'Comment':
+        add_comment(request, recipe)
+    comments = recipe.comment_set.all()
+    context = {'recipe': recipe, 'ingredients': ingredients, 'rating': rating,
+               'categories': categories, 'comments': comments}
     return render(request, 'tasties_app/view_recipe.html', context)
+
+
+@login_required(login_url='login')
+def add_comment(request, recipe):
+    comment_value = request.POST.get('comment-adding')
+    user = request.user
+    comment_input = Comment(author_id=user, recipe_id=recipe, publication_date=timezone.now(),
+                            comment_text=comment_value)
+    comment_input.full_clean()
+    comment_input.save()
